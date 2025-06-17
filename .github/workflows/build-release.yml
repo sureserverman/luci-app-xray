@@ -18,9 +18,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - arch: x86_64
-            sdk_url_path: https://downloads.openwrt.org/releases/23.05.5/targets/x86/64
-            sdk_name: -sdk-23.05.5-x86-64_
+          - arch: mips_24kc
+            sdk_url_path: https://downloads.openwrt.org/releases/22.03.4/targets/ath79/nand/
+            sdk_name: -sdk-22.03.4-mips_24kc_
 
     env:
       SDK_URL_PATH: ${{ matrix.sdk_url_path }}
