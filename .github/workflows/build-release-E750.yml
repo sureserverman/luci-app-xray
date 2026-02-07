@@ -1,4 +1,4 @@
-name: Build and Release
+name: Build e750
 
 on:
   push:
