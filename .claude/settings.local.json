@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "WebSearch",
-      "WebFetch(domain:downloads.openwrt.org)"
+      "WebFetch(domain:downloads.openwrt.org)",
+      "Bash(wget:*)",
+      "Bash(curl:*)"
     ]
   }
 }

@@ -19,8 +19,8 @@ jobs:
       matrix:
         include:
           - arch: aarch64_cortex-a53
-            sdk_url_path: https://downloads.openwrt.org/releases/21.02-SNAPSHOT/targets/mediatek/mt7622
-            sdk_name: -sdk-21.02-SNAPSHOT-mediatek-mt7622_
+            sdk_url_path: https://downloads.openwrt.org/releases/21.02.7/targets/mediatek/mt7622
+            sdk_name: -sdk-21.02.7-mediatek-mt7622_
 
     env:
       SDK_URL_PATH: ${{ matrix.sdk_url_path }}
