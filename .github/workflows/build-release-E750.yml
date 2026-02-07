@@ -105,10 +105,12 @@ jobs:
           make package/${PACKAGE_NAME}/status/{clean,compile} V=s
           find "$SDK_HOME/bin/" -type f -name "*.ipk" -exec ls -lh {} \;
           cd -
-      - name: Copy Bin Files
+      - name: Copy and Rename Bin Files
         run: |
           find "$SDK_HOME/bin/" -type f -name "${PACKAGE_NAME}*.ipk" -exec cp {} "${{ github.workspace }}" \;
-          find "${{ github.workspace }}" -type f -name "*.ipk" -exec ls -lh {} \;
+          cd "${{ github.workspace }}"
+          for f in ${PACKAGE_NAME}*.ipk; do mv "$f" "${f%%_all.ipk}_E750.ipk"; done
+          ls -lh *.ipk
       - name: Release and Upload Assets
         uses: softprops/action-gh-release@v1
         with:

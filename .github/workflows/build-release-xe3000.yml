@@ -19,8 +19,8 @@ jobs:
       matrix:
         include:
           - arch: aarch64_cortex-a53
-            sdk_url_path: https://downloads.openwrt.org/releases/24.10.4/targets/mediatek/filogic
-            sdk_name: -sdk-24.10.4-mediatek-filogic_
+            sdk_url_path: https://downloads.openwrt.org/releases/21.02-SNAPSHOT/targets/mediatek/mt7622
+            sdk_name: -sdk-21.02-SNAPSHOT-mediatek-mt7622_
 
     env:
       SDK_URL_PATH: ${{ matrix.sdk_url_path }}
@@ -46,7 +46,7 @@ jobs:
             openwrt-${{ matrix.arch }}-${{ env.PACKAGE_NAME }}-
       - name: Install Dependencies
         run: |
-          DEBIAN_FRONTEND=noninteractive sudo apt-get install -y ccache gettext libncurses5-dev xsltproc zstd
+          DEBIAN_FRONTEND=noninteractive sudo apt-get install -y ccache gettext libncurses5-dev xsltproc p7zip-full
       - name: Create Directories
         run: |
           CACHE_DIR_SDK="$(eval echo "$CACHE_DIR/sdk")"
@@ -79,7 +79,7 @@ jobs:
           fi
           cd -
           file "$CACHE_DIR_SDK/$SDK_FILE"
-          tar -I zstd -C "$SDK_HOME" -xvf "$CACHE_DIR_SDK/$SDK_FILE" --strip=1
+          7z x "$CACHE_DIR_SDK/$SDK_FILE" -so | tar -C "$SDK_HOME" -xvf - --strip=1
           cd "$SDK_HOME"
           test -d "dl" && rm -rf "dl" || true
           test -d "feeds" && rm -rf "feeds" || true
@@ -105,10 +105,12 @@ jobs:
           make package/${PACKAGE_NAME}/status/{clean,compile} V=s
           find "$SDK_HOME/bin/" -type f -name "*.ipk" -exec ls -lh {} \;
           cd -
-      - name: Copy Bin Files
+      - name: Copy and Rename Bin Files
         run: |
           find "$SDK_HOME/bin/" -type f -name "${PACKAGE_NAME}*.ipk" -exec cp {} "${{ github.workspace }}" \;
-          find "${{ github.workspace }}" -type f -name "*.ipk" -exec ls -lh {} \;
+          cd "${{ github.workspace }}"
+          for f in ${PACKAGE_NAME}*.ipk; do mv "$f" "${f%%_all.ipk}_XE3000.ipk"; done
+          ls -lh *.ipk
       - name: Release and Upload Assets
         uses: softprops/action-gh-release@v1
         with:
