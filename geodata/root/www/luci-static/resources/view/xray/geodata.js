@@ -1,5 +1,6 @@
 'use strict';
 'require dom';
+'require fs';
 'require uci';
 'require ui';
 'require view';
@@ -252,6 +253,15 @@ function decodeGeoIPList(buffer) {
     return geoIPList;
 }
 
+function matchesDomain(subdomain, domain) {
+    const lowerDomain = domain.toLowerCase();
+    const lowerSubdomain = subdomain.toLowerCase();
+    if (lowerSubdomain === lowerDomain) {
+        return true;
+    }
+    return lowerSubdomain.endsWith('.' + lowerDomain);
+}
+
 function matchesCIDR(cidrIp, prefix, queryIp) {
     // Check if input IP matches CIDR IP version
     if ((cidrIp.length === 4 && queryIp.length !== 4) || (cidrIp.length === 16 && queryIp.length !== 16)) {
@@ -333,8 +343,8 @@ return view.extend({
         return Promise.all([
             new Date(),
             uci.load(shared.variant),
-            fetch("/xray/geoip.dat").then(v => v.arrayBuffer()),
-            fetch("/xray/geosite.dat").then(v => v.arrayBuffer()),
+            fs.read_direct("/usr/share/xray/geoip.dat", "blob").then(v => v.arrayBuffer()),
+            fs.read_direct("/usr/share/xray/geosite.dat", "blob").then(v => v.arrayBuffer()),
         ]);
     },
 
@@ -434,7 +444,7 @@ return view.extend({
                                 const results = geosite_result.entry.map(entry => ({
                                     ...entry,
                                     domain: entry.domain.filter(domain => {
-                                        return query && (selectedCode === '' || entry.countryCode === selectedCode) && domain.value.toLowerCase().includes(query);
+                                        return query && (selectedCode === '' || entry.countryCode === selectedCode) && matchesDomain(query, domain.value);
                                     })
                                 })).filter(entry => entry.domain.length > 0);
                                 renderGeoSiteResults(results);

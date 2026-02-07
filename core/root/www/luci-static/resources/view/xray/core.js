@@ -156,7 +156,7 @@ return view.extend({
 
         s.tab('general', _('General Settings'));
 
-        o = s.taboption('general', form.Flag, 'transparent_proxy_enable', _('Enable Xray Service'), _('Uncheck this to disable the entire Xray service.'));
+        o = s.taboption('general', form.Flag, 'transparent_proxy_enable', _('Enable Transparent Proxy'), _('Enable integrations with dnsmasq and nftables. To disable luci-app-xray completely, go to <a href="/cgi-bin/luci/admin/system/startup">Startup</a> and disable <code>xray_core</code>.'));
 
         let tcp_balancer_v4 = s.taboption('general', form.MultiValue, 'tcp_balancer_v4', _('TCP Server (IPv4)'), _("Select multiple outbound servers to enable load balancing. Select none to disable TCP Outbound."));
         tcp_balancer_v4.datatype = "uciname";
@@ -242,20 +242,17 @@ return view.extend({
         transport.init(o, ss, 'transport');
         o.rmempty = false;
 
-        o = ss.taboption('transport', form.ListValue, 'dialer_proxy', _('Dialer Proxy'), _('Similar to <a href="https://xtls.github.io/config/outbound.html#proxysettingsobject">ProxySettings.Tag</a>'));
-        o.datatype = "uciname";
-        o.value("disabled", _("Disabled"));
-        for (const v of uci.sections(config_data, "servers")) {
-            o.value(v[".name"], server_alias(v));
-        }
-        o.modalonly = true;
+        let dialer_proxy = ss.taboption('transport', form.ListValue, 'dialer_proxy', _('Dialer Proxy'), _('Similar to <a href="https://xtls.github.io/config/outbound.html#proxysettingsobject">ProxySettings.Tag</a>'));
+        dialer_proxy.datatype = "uciname";
+        dialer_proxy.value("disabled", _("Disabled"));
+        dialer_proxy.modalonly = true;
 
         ss.tab('custom', _('Custom Options'));
 
-        o = ss.taboption('custom', form.TextValue, 'custom_config', _('Custom Configurations'), _(`Configurations here override settings in the previous tabs with the following rules: <ol><li>Object values will be replaced recursively so settings in previous tabs matter.</li><li>Arrays will be replaced entirely instead of being merged.</li><li>Tag <code>tag</code> and mark <code>streamSettings.sockopt.mark</code> are ignored. </li></ol>Aliases are not handled while merging configurations:<ol><li>Use <code>tcpSettings</code> instead of <code>rawSettings</code>.</li><li>Use <code>splithttpSettings</code> instead of <code>xhttpSettings</code>.</li></ol>Some transports like <code>splithttp</code> may use another <code>streamSettings.sockopt</code>:<ol><li><a href="https://github.com/yichya/luci-app-xray/issues/434">Read instructions here</a>, and use <code>${firewall_mark}</code> as <code>sockopt.mark</code> to avoid loopback traffic.</ol>Override rules here may be changed later. Use this only for experimental or pre-release features.`));
+        o = ss.taboption('custom', form.TextValue, 'custom_config', _('Custom Configurations'), _(`Configurations here override settings in the previous tabs with the following rules: <ul><li>Object values will be replaced recursively so settings in previous tabs matter.</li><li>Arrays will be replaced entirely instead of being merged.</li><li>Tag <code>tag</code> and mark <code>streamSettings.sockopt.mark</code> are ignored. </li></ul>Aliases are not handled while merging configurations:<ul><li>Use <code>tcpSettings</code> instead of <code>rawSettings</code>.</li><li>Use <code>splithttpSettings</code> instead of <code>xhttpSettings</code>.</li></ul>Some transports like <code>splithttp</code> may use another <code>streamSettings.sockopt</code>:<ul><li><a href="https://github.com/yichya/luci-app-xray/issues/434">Read instructions here</a>, and use <code>${firewall_mark}</code> as <code>sockopt.mark</code> to avoid loopback traffic.</ul>Override rules here may be changed later. Use this only for experimental or pre-release features.`));
         o.modalonly = true;
         o.monospace = true;
-        o.rows = 10;
+        o.rows = 12;
         o.validate = shared.validate_object;
 
         s.tab('inbounds', _('Inbounds'));
@@ -465,13 +462,6 @@ return view.extend({
         o.datatype = 'range(0, 50)';
         o.placeholder = 3;
 
-        o = s.taboption('dns', form.ListValue, 'routing_domain_strategy', _('Routing Domain Strategy'), _("Domain resolution strategy when matching domain against rules. (For tproxy, this is effective only when sniffing is enabled.)"));
-        o.value("AsIs", "AsIs");
-        o.value("IPIfNonMatch", "IPIfNonMatch");
-        o.value("IPOnDemand", "IPOnDemand");
-        o.default = "AsIs";
-        o.rmempty = false;
-
         s.tab('fake_dns', _('FakeDNS'));
 
         let tproxy_port_tcp_f4 = s.taboption('fake_dns', form.Value, 'tproxy_port_tcp_f4', _('Transparent proxy port (TCP4)'));
@@ -586,19 +576,25 @@ return view.extend({
         ss.sortable = false;
         ss.anonymous = true;
         ss.addremove = true;
+        ss.nodescriptions = true;
 
-        o = ss.option(form.Value, "source_addr", _("Source Address"));
-        o.datatype = "ipaddr";
+        o = ss.option(form.Value, "source_addr", _("Source Address"), _("Fill an IP address or a rule like <code>geoip:cn</code> or <code>ext:/geoip/cloudflare.dat:cloudflare</code>."));
+        o.validate = shared.validate_ip_or_geoip;
+        o.rmempty = false;
 
-        o = ss.option(form.Value, "source_port", _("Source Port"));
+        o = ss.option(form.Value, "source_port", _("Source Port"), _("Leave empty to forward all ports."));
+        o.textvalue = s => uci.get(config_data, s)?.source_port || _("<i>any</i>");
+        o.validate = shared.validate_port_expression;
 
-        o = ss.option(form.Value, "dest_addr", _("Destination Address"));
+        o = ss.option(form.Value, "dest_addr", _("Destination Address"), _("Leave empty to keep original address unchanged."));
+        o.textvalue = s => uci.get(config_data, s)?.dest_addr || _("<i>original</i>");
         o.datatype = "host";
 
-        o = ss.option(form.Value, "dest_port", _("Destination Port"));
+        o = ss.option(form.Value, "dest_port", _("Destination Port"), _("Fill <code>0</code> to keep original port unchanged."));
         o.datatype = "port";
+        o.rmempty = false;
 
-        o = ss.option(form.DynamicList, "domain_names", _("Domain names to associate"));
+        o = ss.option(form.DynamicList, "domain_names", _("Domain names to associate"), _("Resolve these domains to Source Address above. Only possible when an IP address is used."));
         o.textvalue = list_folded_format(config_data, "domain_names", "domains", 20);
 
         o = ss.option(form.Flag, 'rebind_domain_ok', _('Exempt rebind protection'), _('Avoid dnsmasq filtering RFC1918 IP addresses (and some TESTNET addresses as well) from result.<br/>Must be enabled for TESTNET addresses (<code>192.0.2.0/24</code>, <code>198.51.100.0/24</code>, <code>203.0.113.0/24</code>). Addresses like <a href="https://www.as112.net/">AS112 Project</a> (<code>192.31.196.0/24</code>, <code>192.175.48.0/24</code>) or <a href="https://www.nyiix.net/technical/rtbh/">NYIIX RTBH</a> (<code>198.32.160.7</code>) can avoid that.'));
@@ -607,24 +603,18 @@ return view.extend({
         o = ss.option(form.Flag, 'force_forward_tcp', _('Force Forward (TCP)'), _('This destination must be forwarded through an outbound server.'));
         o.modalonly = true;
 
-        o = ss.option(form.ListValue, 'force_forward_server_tcp', _('Force Forward server (TCP)'));
-        o.depends("force_forward_tcp", "1");
-        o.datatype = "uciname";
-        for (const v of uci.sections(config_data, "servers")) {
-            o.value(v[".name"], server_alias(v));
-        }
-        o.modalonly = true;
+        let force_forward_server_tcp = ss.option(form.ListValue, 'force_forward_server_tcp', _('Force Forward server (TCP)'));
+        force_forward_server_tcp.depends("force_forward_tcp", "1");
+        force_forward_server_tcp.datatype = "uciname";
+        force_forward_server_tcp.modalonly = true;
 
         o = ss.option(form.Flag, 'force_forward_udp', _('Force Forward (UDP)'), _('This destination must be forwarded through an outbound server.'));
         o.modalonly = true;
 
-        o = ss.option(form.ListValue, 'force_forward_server_udp', _('Force Forward server (UDP)'));
-        o.depends("force_forward_udp", "1");
-        o.datatype = "uciname";
-        for (const v of uci.sections(config_data, "servers")) {
-            o.value(v[".name"], server_alias(v));
-        }
-        o.modalonly = true;
+        let force_forward_server_udp = ss.option(form.ListValue, 'force_forward_server_udp', _('Force Forward server (UDP)'));
+        force_forward_server_udp.depends("force_forward_udp", "1");
+        force_forward_server_udp.datatype = "uciname";
+        force_forward_server_udp.modalonly = true;
 
         s.tab('xray_server', _('HTTPS Server'));
 
@@ -733,11 +723,8 @@ return view.extend({
         ss.anonymous = true;
         ss.addremove = true;
 
-        o = ss.option(form.ListValue, "upstream", _("Upstream"));
-        o.datatype = "uciname";
-        for (const v of uci.sections(config_data, "servers")) {
-            o.value(v[".name"], server_alias(v));
-        }
+        let bridge_upstream = ss.option(form.ListValue, "upstream", _("Upstream"));
+        bridge_upstream.datatype = "uciname";
 
         o = ss.option(form.Value, "domain", _("Domain"));
         o.rmempty = false;
@@ -753,7 +740,7 @@ return view.extend({
         custom_configuration_hook.rows = 20;
 
         const servers = uci.sections(config_data, "servers");
-        for (let selection of [destination, fake_dns_forward_server_tcp, fake_dns_forward_server_udp, tcp_balancer_v4, tcp_balancer_v6, udp_balancer_v4, udp_balancer_v6]) {
+        for (let selection of [destination, fake_dns_forward_server_tcp, fake_dns_forward_server_udp, tcp_balancer_v4, tcp_balancer_v6, udp_balancer_v4, udp_balancer_v6, bridge_upstream, force_forward_server_tcp, force_forward_server_udp, dialer_proxy]) {
             if (servers.length == 0) {
                 selection.value("direct", _("No server configured"));
                 selection.readonly = true;
